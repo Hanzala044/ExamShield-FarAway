@@ -1,29 +1,80 @@
-# ExamShield
+# 🛡️ ExamShield: Centralized Exam Integrity Infrastructure
 
-**Secure computer-based test infrastructure** — time-locked encrypted paper
-distribution, biometric identity verification, autonomous AI fraud detection, and
-an immutable on-chain audit trail for India's national examinations.
-
-Built for the *Far Away 2026 — Examinations* track. This is a fully runnable
-hackathon MVP of the [PRD](#modules): all three role interfaces + the FastAPI
-backend, real AES-256-GCM split-key encryption, a hash-chained audit ledger, and
-a deterministic fraud-analysis engine.
-
-> **What's real vs simulated in this build**
-> | Real | Simulated (swappable via env) |
-> |---|---|
-> | AES-256-GCM split-key paper encryption | Polygon chain → local hash-chained ledger (`/audit`) |
-> | Time-lock + GPS geofence key release | Cloud Face API → deterministic match score |
-> | Statistical fraud detection + network graph | Claude evidence prose → templated notes |
-> | 5-role JWT RBAC, WebSocket live alerts | |
->
-> Every simulation is isolated behind a service module with a documented swap
-> point, so it can be pointed at the real Polygon/Rekognition/Claude without
-> touching application code.
+<p align="center">
+  <b>Secure • Transparent • Tamper-Proof</b><br>
+  <i>Secure computer-based test infrastructure — time-locked encrypted paper distribution, biometric identity verification, autonomous AI fraud detection, and an immutable on-chain audit trail for India's national examinations.</i>
+</p>
 
 ---
 
-## Quick start (Docker)
+## 🏛️ Architectural Diagram
+
+![Architectural Diagram](./architecture.jpg)
+
+> **Note:** Ensure the architecture image is saved as `architecture.jpg` in the root directory.
+
+---
+
+## ✨ Key Features & Lifecycle
+
+### 1. Setup & Secure Paper Distribution (Before Exam)
+- **Paper Creation:** Admin creates the exam and uploads the paper.
+- **AES-256-GCM Encryption:** The paper is encrypted before distribution.
+- **Key Split (XOR):** The encryption key is split into two halves. One half is stored in a Server Key Vault, and the other is locked in a Time-Lock Contract on the blockchain.
+- **Paper Distributed:** The usable ciphertext is distributed to exam centers, and a `PaperDistributed` event is logged on-chain.
+
+### 2. Identity Verification (Check-in)
+- **Face Capture & Liveness:** Student arrives and their face is matched against records using **VerifyGate**.
+- **Auto Check-in:** A score $\ge 0.85$ results in automatic check-in.
+- **Manual Override:** A score $< 0.85$ denies access, requiring manual override with mandatory reasoning.
+- **On-chain Logging:** A `StudentCheckedIn` event is logged on the blockchain.
+
+### 3. Key Release & Session Opening
+- **Time-lock + Geofence:** At the exam start time, verification checks if the GPS is inside the geofence and the time-lock is reached.
+- **Key Assembly:** The time-lock contract releases the key half, which combines with the server's half in memory.
+- **Decryption:** The paper is decrypted in memory.
+- **Session Opened:** A `SessionOpened` event is logged on-chain.
+
+### 4. During Exam (Live Monitoring)
+- **Student Kiosk:** A locked browser ensures test integrity.
+- **Telemetry Stream:** Answers, time taken, tab switches, and IP addresses are streamed live.
+- **IntegrityAI Engine:** AI rules and ML models monitor telemetry to flag anomalies.
+- **Live Alerts:** Invigilators receive real-time anomaly alerts via WebSockets.
+- **Anomaly Flagged:** A `AnomalyFlagged` event is logged on-chain.
+
+### 5. Session Closure & Post Exam
+- **Answers Captured:** Timer ends, student submits, answers are captured and checksummed.
+- **Secure Storage:** Data is encrypted and sent to storage.
+- **Session Closed:** A `SessionClosed` event is logged on-chain.
+
+### 6. Post-Exam Fraud Analysis
+- **Run Fraud Analysis:** Admin triggers cross-submission analysis.
+- **Clustering & Networks:** Detects identical wrong answers, builds a force-directed network graph, and ranks suspects.
+- **Analysis Complete:** `AnalysisComplete` event logged on-chain.
+
+### 7. Public Verification
+- **Polygon Blockchain:** All critical events are written to an immutable ledger.
+- **Publicly Queryable Audit Trail:** Anyone can verify events by hash without logging in, ensuring a tamper-proof record.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Encryption** | AES-256-GCM |
+| **Blockchain** | Polygon PoS |
+| **Backend** | FastAPI (Python) |
+| **AI / ML** | Claude API |
+| **Frontend** | React Native / React (Vite/TS) |
+| **Database** | PostgreSQL |
+| **Storage** | AWS S3 (Encrypted) |
+| **Real-time** | WebSocket (WSS) |
+| **Hosting** | AWS / On-Prem |
+
+---
+
+## 🚀 Quick Start (Docker)
 
 ```bash
 docker compose up --build
@@ -31,11 +82,12 @@ docker compose up --build
 
 - **Frontend** → http://localhost:5173
 - **Backend API + docs** → http://localhost:8000/docs
-- **Public audit trail** → http://localhost:5173/audit (no login)
+- **Public audit trail** → http://localhost:5173/audit (no login required)
 
-The database auto-seeds on first boot (3 centers, 50 students, 2 exams).
+*The database auto-seeds on first boot with 3 centers, 50 students, and 2 exams.*
 
-### Demo accounts
+### 🔑 Demo Accounts
+
 | User | Password | Role |
 |---|---|---|
 | `admin` | `admin123` | NTA Super Admin |
@@ -44,58 +96,9 @@ The database auto-seeds on first boot (3 centers, 50 students, 2 exams).
 
 ---
 
-## 3-minute demo script
+## 💻 Running Without Docker
 
-1. **NTA Admin** (`admin`) → *NTA Admin* tab. Create an exam (starts in 2 min):
-   the paper is encrypted with AES-256-GCM on upload and its `blobHash` appears.
-   Click **Distribute** → a `PaperDistributed` event is written on-chain.
-2. **Coordinator** (`coord1`) → *Center Console*. Check in a student by roll no
-   (`NEET2026-0001`) — **VerifyGate** returns a face-match score and issues a
-   session token. Try `NEET2026-0005` (a seeded impersonator) to trigger the
-   **manual override** path — both outcomes are logged on-chain.
-3. Click **Release Time-Locked Key**. The server enforces the time-lock + GPS
-   geofence before reassembling the split key and decrypting the paper.
-   (`KeyReleased` + `SessionOpened` on-chain.)
-4. **Student Kiosk** → open http://localhost:5173/kiosk, paste the session token.
-   Take the exam. Answer a **hard** question in under 2 seconds, or switch
-   browser tabs — watch the **live anomaly alert** appear on the Coordinator's
-   feed in real time. Submit.
-5. **NTA Admin** → run **Fraud Analysis** on *"NEET-UG 2026 — Biology
-   (Completed)"*. IntegrityAI surfaces the two planted collusion clusters with a
-   force-directed **network graph** and ranked evidence. `AnalysisComplete`
-   on-chain.
-6. **Public Audit** (`/audit`) → anyone can browse the hash-chained ledger,
-   verify any event by its hash, and confirm chain integrity — no login.
-
----
-
-## Architecture
-
-```
-React (Vite/TS)  ──HTTPS/WS──►  FastAPI (Python 3.12)  ──►  PostgreSQL 16
-  Admin Portal                    • JWT 5-role RBAC          (exams, students,
-  Center Console                  • WebSocket live feed       submissions, flags)
-  Student Kiosk                   • PaperVault (AES-GCM)
-  Public Audit                    • VerifyGate (face)    ──►  ChainLedger
-                                  • IntegrityAI (fraud)       (hash-chained,
-                                                               public read API)
-```
-
-### Modules (PRD §05)
-| | Module | Implementation |
-|---|---|---|
-| M1 | **PaperVault** | `services/crypto.py` — AES-256-GCM, XOR split key, time-lock + geofence release |
-| M2 | **CenterOS** | `routers/centers.py` + Center Console UI — check-in, session lifecycle |
-| M3 | **VerifyGate** | `services/face.py` — deterministic match, on-chain non-repudiation |
-| M4 | **ExamKiosk** | `pages/kiosk` — locked browser, palette, timer, telemetry stream |
-| M5 | **IntegrityAI** | `services/integrity.py` — live rules + post-exam clustering + graph |
-| M6 | **ChainLedger** | `services/ledger.py` + `routers/ledger.py` — 8 event types, public verify |
-
----
-
-## Running without Docker
-
-**Backend** (needs a local PostgreSQL, or set `DATABASE_URL`):
+**Backend** (Requires local PostgreSQL or a `DATABASE_URL`):
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -110,9 +113,10 @@ npm install
 VITE_API_BASE=http://localhost:8000 npm run dev
 ```
 
-## Going to production
-- **Polygon**: implement `services/ledger.record()` against a deployed Solidity
-  contract via web3/ethers; set `CHAIN_SIMULATED=false`.
-- **Face**: replace `services/face.compare()` with AWS Rekognition / Azure Face.
-- **Claude**: set `AI_USE_CLAUDE=true` + `ANTHROPIC_API_KEY`; implement the call
-  in `services/integrity.narrate()` (single swap point).
+---
+
+## 🌐 Going to Production
+
+- **Polygon:** Implement `services/ledger.record()` against a deployed Solidity contract via `web3/ethers`; set `CHAIN_SIMULATED=false`.
+- **Face API:** Replace `services/face.compare()` with AWS Rekognition or Azure Face.
+- **Claude API:** Set `AI_USE_CLAUDE=true` and provide `ANTHROPIC_API_KEY`; implement the call in `services/integrity.narrate()`.

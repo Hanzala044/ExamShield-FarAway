@@ -84,7 +84,7 @@ export default function CenterDashboard() {
     try {
       const r = await apiPost(`/centers/${centerId}/checkin`, { roll_no: roll });
       if (r.status === "checked_in") {
-        flash(`${r.name} checked in (match ${(r.score * 100).toFixed(0)}%). Seat ${r.seat}.`);
+        flash(`${r.name} checked in (match ${(r.score * 100).toFixed(0)}%). Seat ${r.seat}. SESSION TOKEN: ${r.session_token}`);
         setRoll("");
         loadCenter(centerId);
       } else {
@@ -98,12 +98,12 @@ export default function CenterDashboard() {
   async function decideOverride(approve: boolean) {
     if (!centerId || !mismatch) return;
     try {
-      await apiPost(`/centers/${centerId}/override`, {
+      const r = await apiPost(`/centers/${centerId}/override`, {
         student_id: mismatch.student_id,
         approve,
         reason,
       });
-      flash(approve ? "Override approved — logged on-chain." : "Entry denied — logged on-chain.");
+      flash(approve ? `Override approved. SESSION TOKEN: ${r.session_token}` : "Entry denied — logged on-chain.");
       setMismatch(null);
       setRoll("");
       loadCenter(centerId);

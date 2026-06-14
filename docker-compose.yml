@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: examshield
       POSTGRES_DB: examshield
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +24,7 @@ services:
       AI_USE_CLAUDE: "false"
       ANTHROPIC_API_KEY: ""
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -32,7 +32,7 @@ services:
   frontend:
     build: ./frontend
     environment:
-      VITE_API_BASE: http://localhost:8000
+      VITE_API_BASE: http://localhost:8001
     ports:
       - "5173:5173"
     depends_on:
